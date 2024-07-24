@@ -24,6 +24,8 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
+#define _GNU_SOURCE
+#include <sched.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -677,8 +679,18 @@ iperf_run_client(struct iperf_test * test)
                     i_errno = IEPTHREADATTRINIT;
                     goto cleanup_and_fail;
                 }
+                int thread_count = 0;
+                int cpu_target = 0;
+                cpu_set_t cpuset;
 
                 SLIST_FOREACH(sp, &test->streams, streams) {
+                    if (test->affinity != -1) {
+                        cpu_target = test->affinity + thread_count;
+                        CPU_ZERO(&cpuset);
+                        CPU_SET(cpu_target, &cpuset);
+                        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+                    }
+                    thread_count++;
                     if (pthread_create(&(sp->thr), &attr, &iperf_client_worker_run, sp) != 0) {
                         i_errno = IEPTHREADCREATE;
                         goto cleanup_and_fail;
