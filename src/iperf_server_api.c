@@ -26,7 +26,8 @@
  */
 /* iperf_server_api.c: Functions to be used by an iperf server
 */
-
+#define _GNU_SOURCE
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -876,8 +877,18 @@ iperf_run_server(struct iperf_test *test)
                         i_errno = IEPTHREADATTRINIT;
                         cleanup_server(test);
                     };
+                    int thread_count = 0;
+                    int cpu_target = 0;
+                    cpu_set_t cpuset;
 
                     SLIST_FOREACH(sp, &test->streams, streams) {
+                        if (test->server_affinity != -1) {
+                            cpu_target = test->server_affinity + thread_count;
+                            CPU_ZERO(&cpuset);
+                            CPU_SET(cpu_target, &cpuset);
+                            pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+                        }
+                        thread_count++;
                         if (pthread_create(&(sp->thr), &attr, &iperf_server_worker_run, sp) != 0) {
                             i_errno = IEPTHREADCREATE;
                             cleanup_server(test);
