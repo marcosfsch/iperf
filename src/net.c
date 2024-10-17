@@ -682,8 +682,8 @@ Nsend_sp(struct iperf_stream *sp, const char *buf, size_t count, int prot, int s
     int ret;
 
     ret = Nsend(sp->socket, buf, count, prot, sock_opt);
-    if (sock_opt & MSG_ZEROCOPY)
-	sp->expected_completions++;
+    //if (sock_opt & MSG_ZEROCOPY)
+	//sp->expected_completions++;
 
     return ret;
 }
