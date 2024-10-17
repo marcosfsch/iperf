@@ -46,6 +46,7 @@
 #include <sys/resource.h>
 #include <sched.h>
 #include <setjmp.h>
+#include <signal.h>
 
 #include "iperf.h"
 #include "iperf_api.h"
@@ -69,6 +70,23 @@ void *
 iperf_server_worker_run(void *s) {
     struct iperf_stream *sp = (struct iperf_stream *) s;
     struct iperf_test *test = sp->test;
+
+    /* Blocking signal to make sure that signal will be handled by main thread */
+    sigset_t set;
+    sigemptyset(&set);
+#ifdef SIGTERM
+    sigaddset(&set, SIGTERM);
+#endif
+#ifdef SIGHUP
+    sigaddset(&set, SIGHUP);
+#endif
+#ifdef SIGINT
+    sigaddset(&set, SIGINT);
+#endif
+    if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0) {
+	    i_errno = IEPTHREADSIGMASK;
+	    goto cleanup_and_fail;
+    }
 
     /* Allow this thread to be cancelled even if it's in a syscall */
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -219,17 +237,25 @@ iperf_handle_message_server(struct iperf_test *test)
     int rval;
     struct iperf_stream *sp;
 
+    if (test->debug_level >= DEBUG_LEVEL_INFO) {
+        iperf_printf(test, "Reading new State from the Client - current state is %d-%s\n", test->state, state_to_text(test->state));
+    }
+
     // XXX: Need to rethink how this behaves to fit API
     if ((rval = Nread(test->ctrl_sck, (char*) &test->state, sizeof(signed char), Ptcp)) <= 0) {
         if (rval == 0) {
             iperf_err(test, "the client has unexpectedly closed the connection");
             i_errno = IECTRLCLOSE;
-            test->state = IPERF_DONE;
+            iperf_set_test_state(test, IPERF_DONE);
             return 0;
         } else {
             i_errno = IERECVMESSAGE;
             return -1;
         }
+    }
+
+    if (test->debug_level >= DEBUG_LEVEL_INFO) {
+        iperf_printf(test, "State change: server received and changed State to %d-%s\n", test->state, state_to_text(test->state));
     }
 
     switch(test->state) {
@@ -274,7 +300,7 @@ iperf_handle_message_server(struct iperf_test *test)
                 FD_CLR(sp->socket, &test->write_set);
                 close(sp->socket);
             }
-            test->state = IPERF_DONE;
+            iperf_set_test_state(test, IPERF_DONE);
             break;
         default:
             i_errno = IEMESSAGE;
@@ -553,7 +579,7 @@ iperf_run_server(struct iperf_test *test)
     iperf_time_now(&last_receive_time); // Initialize last time something was received
     last_receive_blocks = 0;
 
-    test->state = IPERF_START;
+    iperf_set_test_state(test, IPERF_START);
     send_streams_accepted = 0;
     rec_streams_accepted = 0;
     rcv_timeout_us = (test->settings->rcv_timeout.secs * SEC_TO_US) + test->settings->rcv_timeout.usecs;
