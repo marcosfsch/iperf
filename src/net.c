@@ -458,7 +458,7 @@ Nread(int fd, char *buf, size_t count, int prot)
 int
 Nread_no_select(int fd, char *buf, size_t count, int prot)
 {
-    return Nrecv_no_select(fd, *buf, count, prot, 0);
+    return Nrecv_no_select(fd, buf, count, prot, 0);
 }
 
 int
