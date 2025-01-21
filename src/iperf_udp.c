@@ -61,8 +61,16 @@ iperf_udp_recv(struct iperf_stream *sp)
     int       first_packet = 0;
     double    transit = 0, d = 0;
     struct iperf_time sent_time, arrival_time, temp_time;
+    int sock_opt = 0;
 
-    r = Nread_no_select(sp->socket, sp->buffer, size, Pudp);
+    // UDP recv() with MSG_TRUNC reads only the size bytes, but return the length of the full packet
+    if (sp->test->settings->skip_rx_copy) {
+        sock_opt = MSG_TRUNC;
+        size = sizeof(sec) + sizeof(usec) + sizeof(pcount);
+    }
+#endif /* HAVE_MSG_TRUNC */
+
+    r = Nrecv_no_select(sp->socket, sp->buffer, size, Pudp, sock_opt);
 
     /*
      * If we got an error in the read, or if we didn't read anything
