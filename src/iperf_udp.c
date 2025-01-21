@@ -63,6 +63,7 @@ iperf_udp_recv(struct iperf_stream *sp)
     struct iperf_time sent_time, arrival_time, temp_time;
     int sock_opt = 0;
 
+#if defined(HAVE_MSG_TRUNC)
     // UDP recv() with MSG_TRUNC reads only the size bytes, but return the length of the full packet
     if (sp->test->settings->skip_rx_copy) {
         sock_opt = MSG_TRUNC;
